@@ -9,6 +9,7 @@ const NUM_CHANNELS: usize = 4;
 
 pub struct Gpiote {
     gpiote: hal::gpiote::Gpiote,
+    broker: Option<&'static Broker<Self>>,
 }
 
 pub struct GpioteChannel<P: GpioteInputPin> {
@@ -17,7 +18,9 @@ pub struct GpioteChannel<P: GpioteInputPin> {
     pin: P,
 }
 
-impl<P: GpioteInputPin + Sized> Actor for GpioteChannel<P> {}
+impl<P: GpioteInputPin + Sized> Actor for GpioteChannel<P> {
+    type Event = ();
+}
 
 pub enum Edge {
     Rising,
@@ -28,7 +31,10 @@ pub enum Edge {
 impl Gpiote {
     pub fn new(gpiote: hal::pac::GPIOTE) -> Self {
         let gpiote = hal::gpiote::Gpiote::new(gpiote);
-        Self { gpiote }
+        Self {
+            gpiote,
+            broker: None,
+        }
     }
 
     pub fn configure_channel<P: GpioteInputPin>(
@@ -88,28 +94,40 @@ impl<P: GpioteInputPin> NotificationHandler<GpioteEvent> for GpioteChannel<P> {
 }*/
 
 impl Interrupt for Gpiote {
-    type Event = GpioteEvent;
-    fn on_interrupt(&mut self, sink: &dyn Sink<Self::Event>) {
+    fn on_interrupt(&mut self) {
         if self.gpiote.channel0().is_event_triggered() {
-            sink.notify(GpioteEvent(Channel::Channel0));
+            self.broker
+                .as_ref()
+                .map(|broker| broker.publish(GpioteEvent(Channel::Channel0)));
         }
 
         if self.gpiote.channel1().is_event_triggered() {
-            sink.notify(GpioteEvent(Channel::Channel1));
+            self.broker
+                .as_ref()
+                .map(|broker| broker.publish(GpioteEvent(Channel::Channel1)));
         }
 
         if self.gpiote.channel2().is_event_triggered() {
-            sink.notify(GpioteEvent(Channel::Channel2));
+            self.broker
+                .as_ref()
+                .map(|broker| broker.publish(GpioteEvent(Channel::Channel2)));
         }
 
         if self.gpiote.channel3().is_event_triggered() {
-            sink.notify(GpioteEvent(Channel::Channel3));
+            self.broker
+                .as_ref()
+                .map(|broker| broker.publish(GpioteEvent(Channel::Channel3)));
         }
         self.gpiote.reset_events();
     }
 }
 
-impl Actor for Gpiote {}
+impl Actor for Gpiote {
+    type Event = GpioteEvent;
+    fn start(&mut self, _: Address<Self>, broker: &'static Broker<Self>) {
+        self.broker.replace(broker);
+    }
+}
 
 #[derive(Debug, PartialEq, Copy, Clone, Eq)]
 pub enum Channel {
