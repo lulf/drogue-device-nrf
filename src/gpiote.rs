@@ -139,5 +139,3 @@ pub enum Channel {
 
 #[derive(Debug, Copy, Clone)]
 pub struct GpioteEvent(pub Channel);
-
-impl Message for GpioteEvent {}
