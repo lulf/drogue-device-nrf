@@ -18,7 +18,7 @@ impl Device for MyDevice {
         let fwd_addr = self.btn_fwd.start(supervisor);
         let back_addr = self.btn_back.start(supervisor);
 
-        self.btn_fwd.subscribe(&gpiote_addr);
-        self.btn_back.subscribe(&gpiote_addr);
+        fwd_addr.subscribe(&gpiote_addr);
+        back_addr.subscribe(&gpiote_addr);
     }
 }
