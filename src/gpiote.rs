@@ -12,14 +12,27 @@ pub struct Gpiote {
     broker: Option<&'static Broker<Self>>,
 }
 
-pub struct GpioteChannel<P: GpioteInputPin> {
+pub struct GpioteChannel<P: InputPin + GpioteInputPin + 'static> {
+    broker: Option<&'static Broker<Self>>,
     channel: Channel,
     edge: Edge,
     pin: P,
 }
 
-impl<P: GpioteInputPin + Sized> Actor for GpioteChannel<P> {
-    type Event = ();
+impl<P: InputPin + GpioteInputPin + Sized> Actor for GpioteChannel<P> {
+    type Event = PinEvent;
+    fn start(&mut self, _: Address<Self>, broker: &'static Broker<Self>) {
+        self.broker.replace(broker);
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone, Eq)]
+pub struct PinEvent(pub PinState);
+
+#[derive(Debug, PartialEq, Copy, Clone, Eq)]
+pub enum PinState {
+    High,
+    Low,
 }
 
 pub enum Edge {
@@ -37,7 +50,7 @@ impl Gpiote {
         }
     }
 
-    pub fn configure_channel<P: GpioteInputPin>(
+    pub fn configure_channel<P: InputPin + GpioteInputPin>(
         &self,
         channel: Channel,
         pin: P,
@@ -63,17 +76,29 @@ impl Gpiote {
     }
 }
 
-impl<P: GpioteInputPin> GpioteChannel<P> {
+impl<P: InputPin + GpioteInputPin> GpioteChannel<P> {
     pub fn new(channel: Channel, pin: P, edge: Edge) -> GpioteChannel<P> {
-        GpioteChannel { channel, pin, edge }
+        GpioteChannel {
+            channel,
+            pin,
+            edge,
+            broker: None,
+        }
     }
 }
 
-impl<P: GpioteInputPin> Sink<GpioteEvent> for GpioteChannel<P> {
+impl<P: InputPin + GpioteInputPin> Sink<GpioteEvent> for GpioteChannel<P> {
     fn notify(&self, event: GpioteEvent) {
         match event {
             GpioteEvent(c) if c == self.channel => {
                 log::info!("Channel {:?} notified!", self.channel);
+                if let Some(broker) = self.broker {
+                    if self.pin.is_high().ok().unwrap() {
+                        broker.publish(PinEvent(PinState::High));
+                    } else {
+                        broker.publish(PinEvent(PinState::Low));
+                    }
+                }
             }
             _ => {}
         }
