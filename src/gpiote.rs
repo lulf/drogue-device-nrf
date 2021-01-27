@@ -23,9 +23,9 @@ pub struct GpioteChannel<D: Device + EventHandler<PinEvent>, P: InputPin + Gpiot
 impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin + Sized> Actor
     for GpioteChannel<D, P>
 {
-    fn mount<MD>(&mut self, _: Address<Self>, broker: Broker<MD>)
+    fn mount<M>(&mut self, _: Address<Self>, broker: Broker<M>)
     where
-        MD: Device,
+        M: Device,
     {
         // self.broker.replace(broker);
     }
@@ -114,19 +114,6 @@ impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin> Sink<Gpio
         }
     }
 }
-
-/*
-impl<P: GpioteInputPin> NotificationHandler<GpioteEvent> for GpioteChannel<P> {
-    fn on_notification(&'static mut self, event: GpioteEvent) -> Completion {
-        match event {
-            GpioteEvent(c) if c == self.channel => {
-                log::info!("Channel {:?} notified!", self.channel);
-            }
-            _ => {}
-        }
-        Completion::immediate()
-    }
-}*/
 
 impl<D: Device + EventHandler<GpioteEvent>> Interrupt for Gpiote<D> {
     fn on_interrupt(&mut self) {
