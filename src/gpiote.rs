@@ -91,10 +91,10 @@ impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin> GpioteCh
     }
 }
 
-impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin> Sink<GpioteEvent>
-    for GpioteChannel<D, P>
+impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin>
+    NotificationHandler<GpioteEvent> for GpioteChannel<D, P>
 {
-    fn notify(&self, event: GpioteEvent) {
+    fn on_notification(&'static mut self, event: GpioteEvent) -> Completion {
         match event {
             GpioteEvent(c) if c == self.channel => {
                 log::info!("Channel {:?} notified!", self.channel);
@@ -108,10 +108,11 @@ impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin> Sink<Gpi
             }
             _ => {}
         }
+        Completion::immediate()
     }
 }
 
-impl<D: Device + EventConsumer<GpioteEvent>> Interrupt<D> for Gpiote<D> {
+impl<D: Device + EventConsumer<GpioteEvent> + 'static> Interrupt<D> for Gpiote<D> {
     fn on_interrupt(&mut self) {
         if let Some(bus) = &self.bus {
             if self.gpiote.channel0().is_event_triggered() {
