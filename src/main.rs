@@ -38,12 +38,12 @@ fn main() -> ! {
     let _clocks = clocks.start_lfclk();
 
     let gpiote = Gpiote::new(device.GPIOTE);
-    let button_fwd: Button = gpiote.configure_channel(
+    let button_fwd = gpiote.configure_channel(
         Channel::Channel0,
         port0.p0_14.into_pullup_input().degrade(),
         Edge::Falling,
     );
-    let button_back: Button = gpiote.configure_channel(
+    let button_back = gpiote.configure_channel(
         Channel::Channel1,
         port0.p0_23.into_pullup_input().degrade(),
         Edge::Falling,
@@ -80,7 +80,6 @@ fn main() -> ! {
         btn_back: ActorContext::new(button_back),
         gpiote: InterruptContext::new(gpiote, hal::pac::Interrupt::GPIOTE),
         led: ActorContext::new(led),
-        activator: ActorContext::new(LedActivator { matrix: None }),
     };
 
     device!( MyDevice = device; 1024 );

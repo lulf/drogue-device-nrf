@@ -16,54 +16,24 @@ pub struct MyDevice {
     pub gpiote: InterruptContext<Gpiote>,
     pub btn_fwd: ActorContext<Button>,
     pub btn_back: ActorContext<Button>,
-    pub activator: ActorContext<LedActivator>,
 }
 
 impl Device for MyDevice {
     fn start(&'static mut self, supervisor: &mut Supervisor) {
-        let gpiote_addr = self.gpiote.start(supervisor);
-        let fwd_addr = self.btn_fwd.start(supervisor);
-        let back_addr = self.btn_back.start(supervisor);
-        let matrix_addr = self.led.start(supervisor);
-        let activator_addr = self.activator.start(supervisor);
-
-        fwd_addr.subscribe(&gpiote_addr);
-        back_addr.subscribe(&gpiote_addr);
-
-        activator_addr.subscribe(&fwd_addr);
-        activator_addr.notify(matrix_addr);
+        let _gpiote_addr = self.gpiote.start(self, supervisor);
+        let _fwd_addr = self.btn_fwd.mount(self, supervisor);
+        let _back_addr = self.btn_back.mount(self, supervisor);
+        let _matrix_addr = self.led.mount(self, supervisor);
     }
 }
 
-pub struct LedActivator {
-    pub matrix: Option<Address<LedMatrix>>,
-}
+/*
+impl Actor for MyDevice {}
 
-impl Actor for LedActivator {
-    type Event = ();
-}
-
-impl NotificationHandler<Address<LedMatrix>> for LedActivator {
-    fn on_notification(&'static mut self, event: Address<LedMatrix>) -> Completion {
-        self.matrix.replace(event);
+impl NotificationHandler<GpioteEvent> for MyDevice {
+    fn on_notification(&'static mut self, event: GpioteEvent) -> Completion {
         Completion::immediate()
     }
 }
 
-impl Sink<PinEvent> for LedActivator {
-    fn notify(&self, event: PinEvent) {
-        if let Some(matrix) = &self.matrix {
-            match event {
-                PinEvent(PinState::Low) => {
-                    log::info!("Enabling led");
-                    matrix.notify(MatrixCommand::On(0, 0));
-                }
-                _ => {
-                    log::info!("Disabling led");
-                    matrix.notify(MatrixCommand::Off(0, 0));
-                }
-            }
-            matrix.notify(MatrixCommand::Render);
-        }
-    }
-}
+*/

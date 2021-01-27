@@ -9,20 +9,25 @@ const NUM_CHANNELS: usize = 4;
 
 pub struct Gpiote {
     gpiote: hal::gpiote::Gpiote,
-    broker: Option<&'static Broker<Self>>,
+    broker: Option<Broker>,
 }
 
 pub struct GpioteChannel<P: InputPin + GpioteInputPin + 'static> {
-    broker: Option<&'static Broker<Self>>,
+    broker: Option<Broker>,
     channel: Channel,
     edge: Edge,
     pin: P,
 }
 
 impl<P: InputPin + GpioteInputPin + Sized> Actor for GpioteChannel<P> {
-    type Event = PinEvent;
-    fn start(&mut self, _: Address<Self>, broker: &'static Broker<Self>) {
+    fn mount(&mut self, _: Address<Self>, broker: Broker) {
         self.broker.replace(broker);
+    }
+}
+
+impl<P: InputPin + GpioteInputPin + Sized> NotificationHandler<Lifecycle> for GpioteChannel<P> {
+    fn on_notification(&'static mut self, message: Lifecycle) -> Completion {
+        Completion::immediate()
     }
 }
 
@@ -92,11 +97,11 @@ impl<P: InputPin + GpioteInputPin> Sink<GpioteEvent> for GpioteChannel<P> {
         match event {
             GpioteEvent(c) if c == self.channel => {
                 log::info!("Channel {:?} notified!", self.channel);
-                if let Some(broker) = self.broker {
+                if let Some(broker) = &self.broker {
                     if self.pin.is_high().ok().unwrap() {
-                        broker.publish(PinEvent(PinState::High));
+                        broker.publish::<Self, PinEvent>(PinEvent(PinState::High));
                     } else {
-                        broker.publish(PinEvent(PinState::Low));
+                        broker.publish::<Self, PinEvent>(PinEvent(PinState::Low));
                     }
                 }
             }
@@ -120,39 +125,41 @@ impl<P: GpioteInputPin> NotificationHandler<GpioteEvent> for GpioteChannel<P> {
 
 impl Interrupt for Gpiote {
     fn on_interrupt(&mut self) {
-        if self.gpiote.channel0().is_event_triggered() {
-            self.broker
-                .as_ref()
-                .map(|broker| broker.publish(GpioteEvent(Channel::Channel0)));
-        }
+        if let Some(broker) = &self.broker {
+            if self.gpiote.channel0().is_event_triggered() {
+                broker.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel0));
+            }
 
-        if self.gpiote.channel1().is_event_triggered() {
-            self.broker
-                .as_ref()
-                .map(|broker| broker.publish(GpioteEvent(Channel::Channel1)));
-        }
+            if self.gpiote.channel1().is_event_triggered() {
+                broker.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel1));
+            }
 
-        if self.gpiote.channel2().is_event_triggered() {
-            self.broker
-                .as_ref()
-                .map(|broker| broker.publish(GpioteEvent(Channel::Channel2)));
-        }
+            if self.gpiote.channel2().is_event_triggered() {
+                broker.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel2));
+            }
 
-        if self.gpiote.channel3().is_event_triggered() {
-            self.broker
-                .as_ref()
-                .map(|broker| broker.publish(GpioteEvent(Channel::Channel3)));
+            if self.gpiote.channel3().is_event_triggered() {
+                broker.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel3));
+            }
         }
         self.gpiote.reset_events();
     }
 }
 
 impl Actor for Gpiote {
-    type Event = GpioteEvent;
-    fn start(&mut self, _: Address<Self>, broker: &'static Broker<Self>) {
+    fn mount(&mut self, _: Address<Self>, broker: Broker) {
         self.broker.replace(broker);
     }
 }
+
+impl NotificationHandler<Lifecycle> for Gpiote {
+    fn on_notification(&'static mut self, message: Lifecycle) -> Completion {
+        Completion::immediate()
+    }
+}
+
+impl<P: InputPin + GpioteInputPin + 'static> Publisher<PinEvent> for GpioteChannel<P> {}
+impl Publisher<GpioteEvent> for Gpiote {}
 
 #[derive(Debug, PartialEq, Copy, Clone, Eq)]
 pub enum Channel {
