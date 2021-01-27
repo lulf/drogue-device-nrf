@@ -12,10 +12,10 @@ pub type Button = GpioteChannel<MyDevice, Pin<Input<PullUp>>>;
 pub type LedMatrix = LEDMatrix<Pin<Output<PushPull>>, consts::U5, consts::U5>;
 
 pub struct MyDevice {
-    pub led: ActorContext<LedMatrix>,
-    pub gpiote: InterruptContext<Gpiote<Self>>,
-    pub btn_fwd: ActorContext<Button>,
-    pub btn_back: ActorContext<Button>,
+    pub led: ActorContext<Self, LedMatrix>,
+    pub gpiote: InterruptContext<Self, Gpiote<Self>>,
+    pub btn_fwd: ActorContext<Self, Button>,
+    pub btn_back: ActorContext<Self, Button>,
 }
 
 impl Device for MyDevice {
@@ -27,12 +27,10 @@ impl Device for MyDevice {
     }
 }
 
-impl EventHandler<GpioteEvent> for MyDevice {
-    fn on_event(&self, event: GpioteEvent) {}
-}
-
-impl EventHandler<PinEvent> for MyDevice {
-    fn on_event(&self, event: PinEvent) {}
+impl<E: core::fmt::Debug> EventConsumer<E> for MyDevice {
+    fn on_event(&self, event: E) {
+        log::info!("Got event: {:?}", event);
+    }
 }
 
 /*

@@ -7,27 +7,26 @@ use hal::gpiote::GpioteInputPin;
 
 const NUM_CHANNELS: usize = 4;
 
-pub struct Gpiote<D: Device + EventHandler<GpioteEvent>> {
+pub struct Gpiote<D: Device + EventConsumer<GpioteEvent>> {
     gpiote: hal::gpiote::Gpiote,
-    broker: Option<Broker<D>>,
+    bus: Option<EventBus<D>>,
 }
 
-pub struct GpioteChannel<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin + 'static>
-{
-    broker: Option<Broker<D>>,
+pub struct GpioteChannel<
+    D: Device + EventConsumer<PinEvent>,
+    P: InputPin + GpioteInputPin + 'static,
+> {
+    bus: Option<EventBus<D>>,
     channel: Channel,
     edge: Edge,
     pin: P,
 }
 
-impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin + Sized> Actor
+impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin + Sized> Actor<D>
     for GpioteChannel<D, P>
 {
-    fn mount<M>(&mut self, _: Address<Self>, broker: Broker<M>)
-    where
-        M: Device,
-    {
-        // self.broker.replace(broker);
+    fn mount(&mut self, _: Address<D, Self>, bus: EventBus<D>) {
+        self.bus.replace(bus);
     }
 }
 
@@ -46,13 +45,10 @@ pub enum Edge {
     Both,
 }
 
-impl<D: Device + EventHandler<GpioteEvent>> Gpiote<D> {
+impl<D: Device + EventConsumer<GpioteEvent>> Gpiote<D> {
     pub fn new(gpiote: hal::pac::GPIOTE) -> Self {
         let gpiote = hal::gpiote::Gpiote::new(gpiote);
-        Self {
-            gpiote,
-            broker: None,
-        }
+        Self { gpiote, bus: None }
     }
 
     pub fn configure_channel<P: InputPin + GpioteInputPin>(
@@ -62,7 +58,7 @@ impl<D: Device + EventHandler<GpioteEvent>> Gpiote<D> {
         edge: Edge,
     ) -> GpioteChannel<D, P>
     where
-        D: EventHandler<PinEvent>,
+        D: EventConsumer<PinEvent>,
     {
         let ch = match channel {
             Channel::Channel0 => self.gpiote.channel0(),
@@ -84,29 +80,29 @@ impl<D: Device + EventHandler<GpioteEvent>> Gpiote<D> {
     }
 }
 
-impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin> GpioteChannel<D, P> {
+impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin> GpioteChannel<D, P> {
     pub fn new(channel: Channel, pin: P, edge: Edge) -> GpioteChannel<D, P> {
         GpioteChannel {
             channel,
             pin,
             edge,
-            broker: None,
+            bus: None,
         }
     }
 }
 
-impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin> Sink<GpioteEvent>
+impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin> Sink<GpioteEvent>
     for GpioteChannel<D, P>
 {
     fn notify(&self, event: GpioteEvent) {
         match event {
             GpioteEvent(c) if c == self.channel => {
                 log::info!("Channel {:?} notified!", self.channel);
-                if let Some(broker) = &self.broker {
+                if let Some(bus) = &self.bus {
                     if self.pin.is_high().ok().unwrap() {
-                        broker.publish::<Self, PinEvent>(PinEvent(PinState::High));
+                        bus.publish::<Self, PinEvent>(PinEvent(PinState::High));
                     } else {
-                        broker.publish::<Self, PinEvent>(PinEvent(PinState::Low));
+                        bus.publish::<Self, PinEvent>(PinEvent(PinState::Low));
                     }
                 }
             }
@@ -115,42 +111,42 @@ impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin> Sink<Gpio
     }
 }
 
-impl<D: Device + EventHandler<GpioteEvent>> Interrupt for Gpiote<D> {
+impl<D: Device + EventConsumer<GpioteEvent>> Interrupt<D> for Gpiote<D> {
     fn on_interrupt(&mut self) {
-        if let Some(broker) = &self.broker {
+        if let Some(bus) = &self.bus {
             if self.gpiote.channel0().is_event_triggered() {
-                broker.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel0));
+                bus.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel0));
             }
 
             if self.gpiote.channel1().is_event_triggered() {
-                broker.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel1));
+                bus.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel1));
             }
 
             if self.gpiote.channel2().is_event_triggered() {
-                broker.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel2));
+                bus.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel2));
             }
 
             if self.gpiote.channel3().is_event_triggered() {
-                broker.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel3));
+                bus.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel3));
             }
         }
         self.gpiote.reset_events();
     }
 }
 
-impl<D: Device + EventHandler<GpioteEvent>> Actor for Gpiote<D> {
-    fn mount<MD: Device>(&mut self, _: Address<Self>, broker: Broker<MD>) {
-        // self.broker.replace(broker);
+impl<D: Device + EventConsumer<GpioteEvent>> Actor<D> for Gpiote<D> {
+    fn mount(&mut self, _: Address<D, Self>, bus: EventBus<D>) {
+        self.bus.replace(bus);
     }
 }
 
-impl<D: Device + EventHandler<GpioteEvent>> NotificationHandler<Lifecycle> for Gpiote<D> {
+impl<D: Device + EventConsumer<GpioteEvent>> NotificationHandler<Lifecycle> for Gpiote<D> {
     fn on_notification(&'static mut self, _: Lifecycle) -> Completion {
         Completion::immediate()
     }
 }
 
-impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin + 'static>
+impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin + 'static>
     NotificationHandler<Lifecycle> for GpioteChannel<D, P>
 {
     fn on_notification(&'static mut self, _: Lifecycle) -> Completion {
@@ -158,12 +154,12 @@ impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin + 'static>
     }
 }
 
-impl<D: Device + EventHandler<PinEvent>, P: InputPin + GpioteInputPin + 'static> Publisher<PinEvent>
-    for GpioteChannel<D, P>
+impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin + 'static>
+    EventProducer<D, PinEvent> for GpioteChannel<D, P>
 {
 }
 
-impl<D: Device + EventHandler<GpioteEvent>> Publisher<GpioteEvent> for Gpiote<D> {}
+impl<D: Device + EventConsumer<GpioteEvent>> EventProducer<D, GpioteEvent> for Gpiote<D> {}
 
 #[derive(Debug, PartialEq, Copy, Clone, Eq)]
 pub enum Channel {
