@@ -100,9 +100,9 @@ impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin>
                 log::info!("Channel {:?} notified!", self.channel);
                 if let Some(bus) = &self.bus {
                     if self.pin.is_high().ok().unwrap() {
-                        bus.publish::<Self, PinEvent>(PinEvent(PinState::High));
+                        bus.publish(PinEvent(PinState::High));
                     } else {
-                        bus.publish::<Self, PinEvent>(PinEvent(PinState::Low));
+                        bus.publish(PinEvent(PinState::Low));
                     }
                 }
             }
@@ -116,19 +116,19 @@ impl<D: Device + EventConsumer<GpioteEvent> + 'static> Interrupt<D> for Gpiote<D
     fn on_interrupt(&mut self) {
         if let Some(bus) = &self.bus {
             if self.gpiote.channel0().is_event_triggered() {
-                bus.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel0));
+                bus.publish(GpioteEvent(Channel::Channel0));
             }
 
             if self.gpiote.channel1().is_event_triggered() {
-                bus.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel1));
+                bus.publish(GpioteEvent(Channel::Channel1));
             }
 
             if self.gpiote.channel2().is_event_triggered() {
-                bus.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel2));
+                bus.publish(GpioteEvent(Channel::Channel2));
             }
 
             if self.gpiote.channel3().is_event_triggered() {
-                bus.publish::<Self, GpioteEvent>(GpioteEvent(Channel::Channel3));
+                bus.publish(GpioteEvent(Channel::Channel3));
             }
         }
         self.gpiote.reset_events();
@@ -155,12 +155,14 @@ impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin + 'static
     }
 }
 
+/*
 impl<D: Device + EventConsumer<PinEvent>, P: InputPin + GpioteInputPin + 'static>
     EventProducer<D, PinEvent> for GpioteChannel<D, P>
 {
 }
 
 impl<D: Device + EventConsumer<GpioteEvent>> EventProducer<D, GpioteEvent> for Gpiote<D> {}
+*/
 
 #[derive(Debug, PartialEq, Copy, Clone, Eq)]
 pub enum Channel {

@@ -19,22 +19,22 @@ pub struct MyDevice {
 }
 
 impl Device for MyDevice {
-    fn mount(&'static mut self, supervisor: &mut Supervisor) {
-        let _gpiote_addr = self.gpiote.mount(self, supervisor);
-        let _fwd_addr = self.btn_fwd.mount(self, supervisor);
-        let _back_addr = self.btn_back.mount(self, supervisor);
-        let _matrix_addr = self.led.mount(self, supervisor);
+    fn mount(&'static mut self, bus: &EventBus<Self>, supervisor: &mut Supervisor) {
+        let _gpiote_addr = self.gpiote.mount(bus, supervisor);
+        let _fwd_addr = self.btn_fwd.mount(bus, supervisor);
+        let _back_addr = self.btn_back.mount(bus, supervisor);
+        let _matrix_addr = self.led.mount(bus, supervisor);
     }
 }
 
 impl EventConsumer<GpioteEvent> for MyDevice {
-    fn on_event(&'static self, event: GpioteEvent) {
+    fn on_event(&'static mut self, event: GpioteEvent) {
         self.btn_fwd.address().notify(event);
     }
 }
 
 impl EventConsumer<PinEvent> for MyDevice {
-    fn on_event(&'static self, event: PinEvent) {
+    fn on_event(&'static mut self, event: PinEvent) {
         log::info!("Got pin event LOL");
     }
 }
